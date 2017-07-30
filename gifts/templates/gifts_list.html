@@ -1,0 +1,8 @@
+<h1>Gifts</h1>
+<ul>
+{% for gift in object_list %}
+    <li>{{ gift.name }}</li>
+{% empty %}
+    <li>No gifts yet.</li>
+{% endfor %}
+</ul>
