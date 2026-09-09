@@ -73,6 +73,68 @@ There is exactly one Django app (`gifts`) inside one Django project
 feature itself — its `home` view is leftover boilerplate from an unrelated
 Django CRUD tutorial (see §4).
 
+### 3.1 Request flow chart
+
+The tree above shows static module layout; the chart below shows how a
+request actually flows through those modules at runtime, including where
+it currently breaks (see §6 for the full narrative):
+
+```
+                    ┌─────────────────────┐
+                    │   Browser request   │
+                    └──────────┬───────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │  apps/urls.py        │  root URLconf
+                    │  (project-level)     │
+                    └──────────┬───────────┘
+                               │
+             ┌─────────────────┼─────────────────────┐
+             │                 │                      │
+             ▼                 ▼                      ▼
+      ^$  -> apps.views.home  /admin/ -> Django admin   ^gifts/ -> include("gifts.urls")
+             │                    │                      │
+             ▼                    ▼                      ▼
+   ┌──────────────────┐  ┌────────────────┐   ┌───────────────────────┐
+   │ Dead tutorial     │  │ Works: full     │   │ gifts/urls.py          │
+   │ HTML, links to    │  │ CRUD via Django │   │ ^$ -> GiftListView     │
+   │ nonexistent paths │  │ admin site      │   └───────────┬────────────┘
+   │ (§6.2)            │  └────────────────┘               │
+   └──────────────────┘                                    ▼
+                                                  ┌───────────────────────┐
+                                                  │ GiftListView.get()     │
+                                                  │ (Django ListView)      │
+                                                  │ -> Gift.objects.all()  │
+                                                  │ -> get_context_data()  │
+                                                  └───────────┬────────────┘
+                                                              │
+                                                              ▼
+                                                  ┌───────────────────────┐
+                                                  │ NameError:             │
+                                                  │ 'ArticleListView' is   │
+                                                  │ not defined  (BUG)     │
+                                                  └───────────┬────────────┘
+                                                              │
+                                                              ▼
+                                                  ┌───────────────────────┐
+                                                  │ 500 Server Error       │
+                                                  │ (never reaches the     │
+                                                  │ template, §6.1)        │
+                                                  └───────────────────────┘
+
+   Unreachable from any URL today (§6.3), only callable from a shell/test:
+
+   create_registry(user) -> register_gift(registry, ...) -> get_unfulfilled_gifts(registry) -> buy_gift(user, gift, amount)
+                                                                                                       │
+                                                                                                       ▼
+                                                                                     Gift.bought_by_list / amount_paid updated
+```
+
+The only branch that reaches a template today would be `GET /gifts/`, and
+even that branch currently dead-ends at the `NameError` above instead of
+rendering `gifts_list.html`.
+
 ## 4. Data Model / ER Description
 
 ```
